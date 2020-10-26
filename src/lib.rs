@@ -68,6 +68,7 @@ impl Side {
 
 // 約定履歴の構造体
 pub struct Execution {
+  id: i64,
   exec_date: DateTime<Utc>,
   exec_unix_time: i64,
   side: Side,
@@ -79,8 +80,8 @@ pub struct Execution {
 impl Common for Execution {
   fn get_csv(&self) -> String {
     format!(
-      "{} {} {} {}\n",
-      self.exec_unix_time, self.side, self.price, self.size
+      "{} {} {} {} {}\n",
+      self.id, self.exec_unix_time, self.side, self.price, self.size
     )
   }
 
@@ -193,6 +194,7 @@ impl BfWebsocket {
                 .unwrap();
               let exec_unix_time = exec_date.timestamp_nanos();
               let execute = Execution {
+                id: v["params"]["message"][i]["id"].as_i64().unwrap(),
                 exec_date: exec_date,
                 exec_unix_time: exec_unix_time,
                 side: Side::from_str(v["params"]["message"][i]["side"].as_str().unwrap()),
