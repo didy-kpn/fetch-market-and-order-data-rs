@@ -77,16 +77,46 @@ impl Execution {
     }
 }
 
-// ストリーミングAPIのチャンネル
-pub enum Channels {
-    // 約定データのチャンネル
+// 遅延情報の構造体
+pub struct Latency {
+    sender_time: i64,
+    receive_time: DateTime<Utc>,
+    channel: String,
+}
+
+impl Latency {
+    // csvに書き込む用のデータを文字列として取得
+    pub fn get_csv(&self) -> String {
+        format!(
+            "{} {}\n",
+            self.receive_time.timestamp_nanos(), self.sender_time
+        )
+    }
+
+    // 遅延データの日付(年月日)を取得
+    pub fn get_date(&self) -> String {
+        self.receive_time.format("%Y%m%d").to_string()
+    }
+
+    // 遅延データのチャンネルを取得
+    pub fn get_channel(&self) -> String {
+        self.channel.to_string()
+    }
+}
+
+// ストリーミングAPIから得られる取引所からのマーケット情報
+pub enum MarketInfo {
+    // 約定データ
     Executions(Execution),
+
+    // 遅延データ
+    LatencyExchange(Latency)
 }
 
 // ストリーミングAPIのデータを取得・送信する構造体
 pub struct BfWebsocket {
-    tx: mpsc::Sender<Channels>,
-    rx: mpsc::Receiver<Channels>,
+    tx: mpsc::Sender<MarketInfo>,
+    rx: mpsc::Receiver<MarketInfo>,
 }
 
 impl BfWebsocket {
@@ -127,26 +157,45 @@ impl BfWebsocket {
             if let Ok(message) = socket.read_message() {
                 match message {
                     Message::Text(text) => {
+                        // 受信時間
+                        let receive_time = Utc::now();
+                        // 約定履歴データの一番古い日時を代入する用
+                        let mut exec_ts_nanos = 5_000_000_000_000_000_000;
+
                         let v: Value = from_str(&text).unwrap();
 
+                        let channel = v["params"]["channel"].as_str().unwrap().to_string();
+
+                        // 約定データを配信する
                         for i in 0..v["params"]["message"].as_array().unwrap().len() {
                             let exec_date = v["params"]["message"][i]["exec_date"]
                                 .as_str()
                                 .unwrap()
                                 .parse::<DateTime<Utc>>()
                                 .unwrap();
+                            let exec_unix_time = exec_date.timestamp_nanos();
                             let execute = Execution {
                                 exec_date: exec_date,
-                                exec_unix_time: exec_date.timestamp_nanos(),
+                                exec_unix_time: exec_unix_time,
                                 side: Side::from_str(
                                     v["params"]["message"][i]["side"].as_str().unwrap(),
                                 ),
                                 price: v["params"]["message"][i]["price"].as_f64().unwrap(),
                                 size: v["params"]["message"][i]["size"].as_f64().unwrap(),
-                                channel: v["params"]["channel"].as_str().unwrap().to_string(),
+                                channel: channel.clone(),
                             };
-                            tx.send(Channels::Executions(execute)).unwrap();
+                            tx.send(MarketInfo::Executions(execute)).unwrap();
+
+                            exec_ts_nanos = std::cmp::min(exec_ts_nanos, exec_unix_time);
                         }
+
+                        // 遅延データを配信する
+                        let latency = Latency {
+                          sender_time: receive_time.timestamp_nanos() - exec_ts_nanos,
+                          receive_time: receive_time,
+                          channel: channel.clone()
+                        };
+                        tx.send(MarketInfo::LatencyExchange(latency)).unwrap();
                     }
                     Message::Ping(data) => {
                         let pong = Message::Pong(data.clone());
@@ -159,8 +208,7 @@ impl BfWebsocket {
     }
 
     // 別スレッドからのメッセージを受け取る
-    pub fn on_message(&self) -> Result<Channels, mpsc::RecvError> {
+    pub fn on_message(&self) -> Result<MarketInfo, mpsc::RecvError> {
         self.rx.recv()
     }
 }
-

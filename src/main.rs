@@ -3,7 +3,7 @@ extern crate fetch_market_and_order_data;
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 
-use fetch_market_and_order_data::{BfWebsocket, Channels};
+use fetch_market_and_order_data::{BfWebsocket, MarketInfo};
 
 fn main() {
     // BitFlyerのストリーミングAPIに接続する
@@ -21,11 +21,10 @@ fn main() {
 
         match message.unwrap() {
             // 約定データを受信した場合
-            Channels::Executions(text) => {
-
+            MarketInfo::Executions(execution) => {
                 // CSVに日時、売買種別、価格、注文量を書き込む
                 // 書き込み先は[bitflyer_{約定データのチャンネル}_{約定データの日付}.csv]
-                let file_name = format!("bitflyer_{}_{}.csv", text.get_channel(), text.get_date());
+                let file_name = format!("bitflyer_{}_{}.csv", execution.get_channel(), execution.get_date());
                 let file = OpenOptions::new()
                     .create(true)
                     .append(true)
@@ -33,7 +32,21 @@ fn main() {
                     .unwrap();
                 let mut f = BufWriter::new(file);
 
-                f.write(text.get_csv().as_bytes()).unwrap();
+                f.write(execution.get_csv().as_bytes()).unwrap();
+            }
+            // 遅延データを受信した場合
+            MarketInfo::LatencyExchange(latency) => {
+                // CSVに遅延時間を書き込む
+                // 書き込み先は[bitflyer_{遅延データのチャンネル}_{遅延データの日付}.csv]
+                let file_name = format!("bitflyer_latency_{}_{}.csv", latency.get_channel(), latency.get_date());
+                let file = OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(file_name)
+                    .unwrap();
+                let mut f = BufWriter::new(file);
+
+                f.write(latency.get_csv().as_bytes()).unwrap();
             }
         }
     }
