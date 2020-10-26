@@ -119,6 +119,27 @@ impl Common for Latency {
   }
 }
 
+// 板情報の構造体
+pub struct Board {
+  receive_time: DateTime<Utc>,
+  json: String,
+  channel: String,
+}
+
+impl Common for Board {
+  fn get_csv(&self) -> String {
+    format!("{} {}\n", self.receive_time.timestamp_nanos(), self.json)
+  }
+
+  fn data_time(&self) -> DateTime<Utc> {
+    self.receive_time
+  }
+
+  fn channel(&self) -> String {
+    self.channel.clone()
+  }
+}
+
 // ストリーミングAPIから得られる取引所からのマーケット情報
 pub enum MarketInfo {
   // 約定データ
@@ -126,6 +147,9 @@ pub enum MarketInfo {
 
   // 遅延データ
   LatencyExchange(Latency),
+
+  // 板情報データ
+  Boards(Board),
 }
 
 // ストリーミングAPIのデータを取得・送信する構造体
@@ -147,10 +171,38 @@ impl BfWebsocket {
   }
 
   // ストリーミングAPIを利用して購読するチャンネル
-  pub fn get_public_channels(&self) -> [String; 2] {
+  pub fn get_public_channels(&self) -> [String; 6] {
     [
       String::from("lightning_executions_FX_BTC_JPY"),
       String::from("lightning_executions_BTC_JPY"),
+      String::from("lightning_board_snapshot_FX_BTC_JPY"),
+      String::from("lightning_board_FX_BTC_JPY"),
+      String::from("lightning_board_snapshot_BTC_JPY"),
+      String::from("lightning_board_BTC_JPY"),
+    ]
+  }
+
+  // ストリーミングAPIの約定履歴チャンネル
+  pub fn get_public_execute_channels(&self) -> [String; 2] {
+    [
+      String::from("lightning_executions_FX_BTC_JPY"),
+      String::from("lightning_executions_BTC_JPY"),
+    ]
+  }
+
+  // ストリーミングAPIの板情報チャンネル
+  pub fn get_public_board_channels(&self) -> [String; 2] {
+    [
+      String::from("lightning_board_FX_BTC_JPY"),
+      String::from("lightning_board_BTC_JPY"),
+    ]
+  }
+
+  // ストリーミングAPIのスナップショットチャンネル
+  pub fn get_public_snapshot_channels(&self) -> [String; 2] {
+    [
+      String::from("lightning_board_snapshot_FX_BTC_JPY"),
+      String::from("lightning_board_snapshot_BTC_JPY"),
     ]
   }
 
@@ -170,6 +222,10 @@ impl BfWebsocket {
     }
 
     let tx = mpsc::Sender::clone(&self.tx);
+    let public_execute_channels = self.get_public_execute_channels().clone();
+    let public_board_channels = self.get_public_board_channels().clone();
+    let public_snapshot_channels = self.get_public_snapshot_channels().clone();
+
     // 別スレッドを立ち上げて、メインスレッドに、受信したデータを配信する
     thread::spawn(move || loop {
       if let Ok(message) = socket.read_message() {
@@ -185,35 +241,82 @@ impl BfWebsocket {
 
             let channel = v["params"]["channel"].as_str().unwrap().to_string();
 
-            // 約定データを配信する
-            for i in 0..v["params"]["message"].as_array().unwrap().len() {
-              let exec_date = v["params"]["message"][i]["exec_date"]
-                .as_str()
-                .unwrap()
-                .parse::<DateTime<Utc>>()
-                .unwrap();
-              let exec_unix_time = exec_date.timestamp_nanos();
-              let execute = Execution {
-                id: v["params"]["message"][i]["id"].as_i64().unwrap(),
-                exec_date: exec_date,
-                exec_unix_time: exec_unix_time,
-                side: Side::from_str(v["params"]["message"][i]["side"].as_str().unwrap()),
-                price: v["params"]["message"][i]["price"].as_f64().unwrap(),
-                size: v["params"]["message"][i]["size"].as_f64().unwrap(),
+            // 受信データが約定履歴の場合、
+            if 0
+              < public_execute_channels
+                .iter()
+                .filter(|&x| x == &channel)
+                .count()
+            {
+              // 約定データを配信する
+              for i in 0..v["params"]["message"].as_array().unwrap().len() {
+                let exec_date = v["params"]["message"][i]["exec_date"]
+                  .as_str()
+                  .unwrap()
+                  .parse::<DateTime<Utc>>()
+                  .unwrap();
+                let exec_unix_time = exec_date.timestamp_nanos();
+                let execute = Execution {
+                  id: v["params"]["message"][i]["id"].as_i64().unwrap(),
+                  exec_date: exec_date,
+                  exec_unix_time: exec_unix_time,
+                  side: Side::from_str(v["params"]["message"][i]["side"].as_str().unwrap()),
+                  price: v["params"]["message"][i]["price"].as_f64().unwrap(),
+                  size: v["params"]["message"][i]["size"].as_f64().unwrap(),
+                  channel: channel.clone(),
+                };
+                tx.send(MarketInfo::Executions(execute)).unwrap();
+
+                exec_ts_nanos = std::cmp::min(exec_ts_nanos, exec_unix_time);
+              }
+
+              // 遅延データを配信する
+              let latency = Latency {
+                sender_time: receive_time.timestamp_nanos() - exec_ts_nanos,
+                receive_time: receive_time,
                 channel: channel.clone(),
               };
-              tx.send(MarketInfo::Executions(execute)).unwrap();
+              tx.send(MarketInfo::LatencyExchange(latency)).unwrap();
 
-              exec_ts_nanos = std::cmp::min(exec_ts_nanos, exec_unix_time);
+            // 受信データが板情報の差分の場合、
+            } else if 0
+              < public_board_channels
+                .iter()
+                .filter(|&x| x == &channel)
+                .count()
+            {
+              // 板データの差分を配信する
+              let board = Board {
+                receive_time: receive_time,
+                json: v["params"]["message"].to_string(),
+                channel: channel.clone(),
+              };
+              tx.send(MarketInfo::Boards(board)).unwrap();
+
+            // 受信データがスナップショットの場合、
+            } else if 0
+              < public_snapshot_channels
+                .iter()
+                .filter(|&x| x == &channel)
+                .count()
+            {
+              // スナップショットの購読を停止する
+              let json = format!(
+                "{{\"jsonrpc\":\"2.0\",\"method\":\"unsubscribe\",\"params\":{{\"channel\":\"{}\"}}}}",
+                channel
+              );
+              socket.write_message(Message::Text(json)).unwrap();
+
+              // 板データのスナップショットを配信する
+              let board = Board {
+                receive_time: receive_time,
+                json: v["params"]["message"].to_string(),
+                channel: channel.replace("_snapshot", ""),
+              };
+              tx.send(MarketInfo::Boards(board)).unwrap();
+            } else {
+              continue;
             }
-
-            // 遅延データを配信する
-            let latency = Latency {
-              sender_time: receive_time.timestamp_nanos() - exec_ts_nanos,
-              receive_time: receive_time,
-              channel: channel.clone(),
-            };
-            tx.send(MarketInfo::LatencyExchange(latency)).unwrap();
           }
           Message::Ping(data) => {
             let pong = Message::Pong(data.clone());
