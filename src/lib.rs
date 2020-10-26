@@ -77,31 +77,31 @@ impl Execution {
     }
 }
 
-// リアルタイムAPIのチャンネル
+// ストリーミングAPIのチャンネル
 pub enum Channels {
     // 約定データのチャンネル
     Executions(Execution),
 }
 
-// リアルタイムAPIのデータを取得・送信する構造体
+// ストリーミングAPIのデータを取得・送信する構造体
 pub struct BfWebsocket {
     tx: mpsc::Sender<Channels>,
     rx: mpsc::Receiver<Channels>,
 }
 
 impl BfWebsocket {
-    // リアルタイムAPIを処理するためのチャンネルを生成する
+    // ストリーミングAPIを処理するためのチャンネルを生成する
     pub fn new() -> Self {
         let (tx, rx) = mpsc::channel();
         BfWebsocket { tx, rx }
     }
 
-    // リアルタイムAPIのエンドポイント
+    // ストリーミングAPIのエンドポイント
     pub fn get_end_point(&self) -> String {
         String::from("wss://ws.lightstream.bitflyer.com/json-rpc")
     }
 
-    // リアルタイムAPIを利用して購読するチャンネル
+    // ストリーミングAPIを利用して購読するチャンネル
     pub fn get_public_channels(&self) -> [String; 2] {
         [
             String::from("lightning_executions_FX_BTC_JPY"),
@@ -109,7 +109,7 @@ impl BfWebsocket {
         ]
     }
 
-    // リアルタイムAPIを利用して、チャンネルの購読を開始し、受信したメッセージを配信する
+    // ストリーミングAPIを利用して、チャンネルの購読を開始し、受信したメッセージを配信する
     pub fn on_connect(&self) {
         // 接続
         let (mut socket, _) =

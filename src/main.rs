@@ -6,12 +6,12 @@ use std::io::{BufWriter, Write};
 use fetch_market_and_order_data::{BfWebsocket, Channels};
 
 fn main() {
-    // BitFlyerのリアルタイムAPIに接続する
+    // BitFlyerのストリーミングAPIに接続する
     let bf = BfWebsocket::new();
     bf.on_connect();
 
     loop {
-        // リアルタイムAPIから配信される情報を取得する
+        // ストリーミングAPIから配信される情報を取得する
         let message = bf.on_message();
 
         if let Err(err) = message {
