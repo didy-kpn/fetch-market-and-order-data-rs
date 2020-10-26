@@ -11,6 +11,30 @@ use serde_json::{from_str, Value};
 
 use std::fmt;
 
+// 共通処理
+pub trait Common {
+  // csvに書き込む用のデータを文字列として取得
+  fn get_csv(&self) -> String;
+
+  fn data_time(&self) -> DateTime<Utc>;
+  fn channel(&self) -> String;
+
+  // データの日付(年月日)を取得
+  fn get_date(&self) -> String {
+    self.data_time().format("%Y%m%d").to_string()
+  }
+
+  // データの日時(年月日時分秒)を取得
+  fn get_date_second(&self) -> String {
+    self.data_time().format("%Y%m%d%H%M%S").to_string()
+  }
+
+  // データのチャンネルを取得
+  fn get_channel(&self) -> String {
+    self.channel().to_string()
+  }
+}
+
 // 売買種別
 pub enum Side {
   Buy,
@@ -52,28 +76,20 @@ pub struct Execution {
   channel: String,
 }
 
-impl Execution {
-  // csvに書き込む用のデータを文字列として取得
-  pub fn get_csv(&self) -> String {
+impl Common for Execution {
+  fn get_csv(&self) -> String {
     format!(
       "{} {} {} {}\n",
       self.exec_unix_time, self.side, self.price, self.size
     )
   }
 
-  // 約定データの日付(年月日)を取得
-  pub fn get_date(&self) -> String {
-    self.exec_date.format("%Y%m%d").to_string()
+  fn data_time(&self) -> DateTime<Utc> {
+    self.exec_date
   }
 
-  // 約定データの日時(年月日時分秒)を取得
-  pub fn get_date_second(&self) -> String {
-    self.exec_date.format("%Y%m%d%H%M%S").to_string()
-  }
-
-  // 約定データのチャンネルを取得
-  pub fn get_channel(&self) -> String {
-    self.channel.to_string()
+  fn channel(&self) -> String {
+    self.channel.clone()
   }
 }
 
@@ -84,9 +100,8 @@ pub struct Latency {
   channel: String,
 }
 
-impl Latency {
-  // csvに書き込む用のデータを文字列として取得
-  pub fn get_csv(&self) -> String {
+impl Common for Latency {
+  fn get_csv(&self) -> String {
     format!(
       "{} {}\n",
       self.receive_time.timestamp_nanos(),
@@ -94,14 +109,12 @@ impl Latency {
     )
   }
 
-  // 遅延データの日付(年月日)を取得
-  pub fn get_date(&self) -> String {
-    self.receive_time.format("%Y%m%d").to_string()
+  fn data_time(&self) -> DateTime<Utc> {
+    self.receive_time
   }
 
-  // 遅延データのチャンネルを取得
-  pub fn get_channel(&self) -> String {
-    self.channel.to_string()
+  fn channel(&self) -> String {
+    self.channel.clone()
   }
 }
 
@@ -163,6 +176,7 @@ impl BfWebsocket {
           Message::Text(text) => {
             // 受信時間
             let receive_time = Utc::now();
+
             // 約定履歴データの一番古い日時を代入する用
             let mut exec_ts_nanos = 5_000_000_000_000_000_000;
 
