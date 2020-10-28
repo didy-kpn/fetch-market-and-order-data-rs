@@ -3,12 +3,19 @@ extern crate fetch_market_and_order_data;
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 
-use fetch_market_and_order_data::stream_api::{BfWebsocket, Common, MarketInfo};
+use fetch_market_and_order_data::stream_api::{BfWebsocket, Common, Execution, MarketInfo};
+use fetch_market_and_order_data::ohlcv::{CandleStick, Periods};
 
 fn main() {
     // BitFlyerのストリーミングAPIに接続する
     let bf = BfWebsocket::new();
     bf.on_connect();
+
+    // 1秒、5秒、15秒、1分、5分のローソク足を作成する
+    let mut candle_sticks = vec![];
+    for period in Periods::iterator() {
+        candle_sticks.push(CandleStick::new(*period));
+    }
 
     loop {
         // ストリーミングAPIから配信される情報を取得する
@@ -26,6 +33,12 @@ fn main() {
                 // 書き込み先は[bitflyer_{約定データのチャンネル}_{約定データの日付}.csv]
                 let file_name = format!("{}_{}", execution.get_channel(), execution.get_date());
                 append_csv(file_name, execution.get_csv().as_bytes());
+
+                // OHCLVデータを更新とCSVに書き込む
+                // 書き込み先は[bitflyer_{時間足}_{約定データのチャンネル}_{約定データの日付}.csv]
+                for i in 0..candle_sticks.len() {
+                    update_ohlcv_and_append_csv(&mut candle_sticks[i], &execution);
+                }
             }
             // 遅延データを受信した場合
             MarketInfo::LatencyExchange(latency) => {
@@ -56,4 +69,22 @@ fn append_csv(append_file_name: String, content: &[u8]) {
     let mut f = BufWriter::new(file);
 
     f.write(content).unwrap();
+}
+
+// OHCLVデータを更新とCSVに書き込む
+fn update_ohlcv_and_append_csv(candle_stick: &mut CandleStick, execution: &Execution) {
+    if candle_stick.in_periods(&execution) {
+        candle_stick.update(&execution);
+        return;
+    }
+    if candle_stick.has_data() {
+        let file_name = format!(
+            "{}_{}_{}",
+            candle_stick.get_csv_name(),
+            execution.get_channel(),
+            execution.get_date()
+        );
+        append_csv(file_name, candle_stick.get_csv().as_bytes());
+    }
+    candle_stick.start(&execution);
 }
