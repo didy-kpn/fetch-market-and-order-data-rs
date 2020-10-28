@@ -1,7 +1,7 @@
 use std::sync::mpsc;
 use std::thread;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc, Date, Datelike};
 
 use tungstenite::{connect, Message};
 
@@ -240,7 +240,23 @@ impl BfWebsocket {
         let public_snapshot_channels = self.get_public_snapshot_channels().clone();
 
         // 別スレッドを立ち上げて、メインスレッドに、受信したデータを配信する
-        thread::spawn(move || loop {
+        thread::spawn(move || {
+            // 前回の接続した日付
+            let mut last_connected_date = Utc::today();
+            loop {
+                // 現在の日付を取得し、前回と日が異なる場合はスナップショットチャンネルに再接続する
+                let connect_time = Utc::today();
+                if last_connected_date.day() != connect_time.day() {
+                    for snapshot_channel in public_snapshot_channels.iter() {
+                        let json = format!(
+                    "{{\"jsonrpc\":\"2.0\",\"method\":\"subscribe\",\"params\":{{\"channel\":\"{}\"}}}}",
+                    snapshot_channel
+                  );
+                        socket.write_message(Message::Text(json)).unwrap();
+                        last_connected_date = connect_time;
+                    }
+                }
+
             if let Ok(message) = socket.read_message() {
                 match message {
                     Message::Text(text) => {
@@ -336,6 +352,7 @@ impl BfWebsocket {
                     }
                     _ => break,
                 }
+            }
             }
         });
     }
