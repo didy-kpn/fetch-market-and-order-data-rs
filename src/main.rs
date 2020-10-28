@@ -3,7 +3,7 @@ extern crate fetch_market_and_order_data;
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 
-use fetch_market_and_order_data::{BfWebsocket, MarketInfo, Common};
+use fetch_market_and_order_data::stream_api::{BfWebsocket, Common, MarketInfo};
 
 fn main() {
   // BitFlyerのストリーミングAPIに接続する
