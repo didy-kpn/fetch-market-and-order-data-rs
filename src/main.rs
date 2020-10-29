@@ -3,8 +3,8 @@ extern crate fetch_market_and_order_data;
 use std::fs::{OpenOptions, create_dir_all};
 use std::io::{BufWriter, Write};
 
-use fetch_market_and_order_data::stream_api::{BfWebsocket, Common, Execution, MarketInfo};
 use fetch_market_and_order_data::ohlcv::{CandleStick, Periods};
+use fetch_market_and_order_data::stream_api::{BfWebsocket, Common, Execution, MarketInfo};
 
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -47,7 +47,8 @@ fn main() {
             MarketInfo::Executions(execution) => {
                 // CSVに日時、売買種別、価格、注文量を書き込む
                 // 書き込み先は[{指定ディレクトリ}/{取引所}/{約定データの日付}/{約定データのチャンネル}.csv]
-                let dir_all_name = format!("{}/{}/{}", output_dir, exchange_name, execution.get_date());
+                let dir_all_name =
+                    format!("{}/{}/{}", output_dir, exchange_name, execution.get_date());
                 let file_name = execution.get_channel();
                 append_csv(&dir_all_name, &file_name, execution.get_csv().as_bytes());
 
@@ -61,7 +62,8 @@ fn main() {
             MarketInfo::LatencyExchange(latency) => {
                 // CSVに遅延時間を書き込む
                 // 書き込み先は[{指定ディレクトリ}/{取引所}/{遅延データの日付}/{遅延データのチャンネル}.csv]
-                let dir_all_name = format!("{}/{}/{}", output_dir, exchange_name, latency.get_date());
+                let dir_all_name =
+                    format!("{}/{}/{}", output_dir, exchange_name, latency.get_date());
                 let file_name = format!("latency_{}", latency.get_channel());
                 append_csv(&dir_all_name, &file_name, latency.get_csv().as_bytes());
             }
@@ -95,7 +97,11 @@ fn append_csv(dir_all_name: &String, append_file_name: &String, content: &[u8]) 
 }
 
 // OHCLVデータを更新とCSVに書き込む
-fn update_ohlcv_and_append_csv(exchange_name: &String, candle_stick: &mut CandleStick, execution: &Execution) {
+fn update_ohlcv_and_append_csv(
+    exchange_name: &String,
+    candle_stick: &mut CandleStick,
+    execution: &Execution,
+) {
     if candle_stick.in_periods(&execution) {
         candle_stick.update(&execution);
         return;

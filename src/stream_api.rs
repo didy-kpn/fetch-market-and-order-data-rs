@@ -174,14 +174,18 @@ pub struct BfWebsocket {
 
 impl BfWebsocket {
     pub fn get_exchange_name(&self) -> String {
-       self.exchange_name.clone()
+        self.exchange_name.clone()
     }
 
     // ストリーミングAPIを処理するためのチャンネルを生成する
     pub fn new() -> Self {
         let exchange_name = String::from("bitFlyer");
         let (tx, rx) = mpsc::channel();
-        BfWebsocket { exchange_name, tx, rx }
+        BfWebsocket {
+            exchange_name,
+            tx,
+            rx,
+        }
     }
 
     // ストリーミングAPIのエンドポイント
