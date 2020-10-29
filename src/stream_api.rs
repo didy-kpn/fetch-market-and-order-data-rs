@@ -167,15 +167,21 @@ pub enum MarketInfo {
 
 // ストリーミングAPIのデータを取得・送信する構造体
 pub struct BfWebsocket {
+    exchange_name: String,
     tx: mpsc::Sender<MarketInfo>,
     rx: mpsc::Receiver<MarketInfo>,
 }
 
 impl BfWebsocket {
+    pub fn get_exchange_name(&self) -> String {
+       self.exchange_name.clone()
+    }
+
     // ストリーミングAPIを処理するためのチャンネルを生成する
     pub fn new() -> Self {
+        let exchange_name = String::from("bitFlyer");
         let (tx, rx) = mpsc::channel();
-        BfWebsocket { tx, rx }
+        BfWebsocket { exchange_name, tx, rx }
     }
 
     // ストリーミングAPIのエンドポイント

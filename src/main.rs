@@ -1,6 +1,6 @@
 extern crate fetch_market_and_order_data;
 
-use std::fs::OpenOptions;
+use std::fs::{OpenOptions, create_dir_all};
 use std::io::{BufWriter, Write};
 
 use fetch_market_and_order_data::stream_api::{BfWebsocket, Common, Execution, MarketInfo};
@@ -17,6 +17,8 @@ fn main() {
         candle_sticks.push(CandleStick::new(*period));
     }
 
+    let exchange_name = bf.get_exchange_name();
+
     loop {
         // ストリーミングAPIから配信される情報を取得する
         let message = bf.on_message();
@@ -30,37 +32,44 @@ fn main() {
             // 約定データを受信した場合
             MarketInfo::Executions(execution) => {
                 // CSVに日時、売買種別、価格、注文量を書き込む
-                // 書き込み先は[bitflyer_{約定データのチャンネル}_{約定データの日付}.csv]
-                let file_name = format!("{}_{}", execution.get_channel(), execution.get_date());
-                append_csv(file_name, execution.get_csv().as_bytes());
+                // 書き込み先は[{取引所}/{約定データの日付}/{約定データのチャンネル}.csv]
+                let dir_all_name = format!("{}/{}", exchange_name, execution.get_date());
+                let file_name = execution.get_channel();
+                append_csv(&dir_all_name, &file_name, execution.get_csv().as_bytes());
 
                 // OHCLVデータを更新とCSVに書き込む
-                // 書き込み先は[bitflyer_{時間足}_{約定データのチャンネル}_{約定データの日付}.csv]
+                // 書き込み先は[{取引所}/{約定データの日付}/{時間足}_{約定データのチャンネル}_.csv]
                 for i in 0..candle_sticks.len() {
-                    update_ohlcv_and_append_csv(&mut candle_sticks[i], &execution);
+                    update_ohlcv_and_append_csv(&exchange_name, &mut candle_sticks[i], &execution);
                 }
             }
             // 遅延データを受信した場合
             MarketInfo::LatencyExchange(latency) => {
                 // CSVに遅延時間を書き込む
-                // 書き込み先は[bitflyer_{遅延データのチャンネル}_{遅延データの日付}.csv]
-                let file_name = format!("latency_{}_{}", latency.get_channel(), latency.get_date());
-                append_csv(file_name, latency.get_csv().as_bytes());
+                // 書き込み先は[{取引所}/{遅延データの日付}/{遅延データのチャンネル}.csv]
+                let dir_all_name = format!("{}/{}", exchange_name, latency.get_date());
+                let file_name = format!("latency_{}", latency.get_channel());
+                append_csv(&dir_all_name, &file_name, latency.get_csv().as_bytes());
             }
             // 板データを受信した場合
             MarketInfo::Boards(board) => {
                 // CSVに遅延時間を書き込む
-                // 書き込み先は[bitflyer_{板データのチャンネル}_{板データの日付}.csv]
-                let file_name = format!("board_{}_{}", board.get_channel(), board.get_date());
-                append_csv(file_name, board.get_csv().as_bytes());
+                // 書き込み先は[{取引所}/{板データの日付}/{板データのチャンネル}.csv]
+                let dir_all_name = format!("{}/{}", exchange_name, board.get_date());
+                let file_name = format!("board_{}", board.get_channel());
+                append_csv(&dir_all_name, &file_name, board.get_csv().as_bytes());
             }
         }
     }
 }
 
 // CSVファイルに追記モードで書き込む
-fn append_csv(append_file_name: String, content: &[u8]) {
-    let file_name = format!("bitflyer_{}.csv", append_file_name);
+fn append_csv(dir_all_name: &String, append_file_name: &String, content: &[u8]) {
+    if let Err(error) = create_dir_all(format!("{}", dir_all_name)) {
+        eprintln!("{}", error);
+    }
+
+    let file_name = format!("{}/{}.csv", dir_all_name, append_file_name);
     let file = OpenOptions::new()
         .create(true)
         .append(true)
@@ -72,19 +81,19 @@ fn append_csv(append_file_name: String, content: &[u8]) {
 }
 
 // OHCLVデータを更新とCSVに書き込む
-fn update_ohlcv_and_append_csv(candle_stick: &mut CandleStick, execution: &Execution) {
+fn update_ohlcv_and_append_csv(exchange_name: &String, candle_stick: &mut CandleStick, execution: &Execution) {
     if candle_stick.in_periods(&execution) {
         candle_stick.update(&execution);
         return;
     }
     if candle_stick.has_data() {
+        let dir_all_name = format!("{}/{}", exchange_name, execution.get_date());
         let file_name = format!(
-            "{}_{}_{}",
+            "{}_{}",
             candle_stick.get_csv_name(),
             execution.get_channel(),
-            execution.get_date()
         );
-        append_csv(file_name, candle_stick.get_csv().as_bytes());
+        append_csv(&dir_all_name, &file_name, candle_stick.get_csv().as_bytes());
     }
     candle_stick.start(&execution);
 }
