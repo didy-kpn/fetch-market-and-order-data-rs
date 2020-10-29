@@ -19,7 +19,7 @@ struct Opt {
 fn main() {
     // コマンドライン引数から配信データ保存先を取得
     let opt = Opt::from_args();
-    let output_dir = &opt.output_dir.display();
+    let output_dir = &opt.output_dir.display().to_string();
 
     // BitFlyerのストリーミングAPIに接続する
     let bf = BfWebsocket::new();
@@ -55,7 +55,7 @@ fn main() {
                 // OHCLVデータを更新とCSVに書き込む
                 // 書き込み先は[{指定ディレクトリ}/{取引所}/{約定データの日付}/{時間足}_{約定データのチャンネル}.csv]
                 for i in 0..candle_sticks.len() {
-                    update_ohlcv_and_append_csv(&exchange_name, &mut candle_sticks[i], &execution);
+                    update_ohlcv_and_append_csv(&output_dir, &exchange_name, &mut candle_sticks[i], &execution);
                 }
             }
             // 遅延データを受信した場合
@@ -98,6 +98,7 @@ fn append_csv(dir_all_name: &String, append_file_name: &String, content: &[u8]) 
 
 // OHCLVデータを更新とCSVに書き込む
 fn update_ohlcv_and_append_csv(
+    output_dir: &String,
     exchange_name: &String,
     candle_stick: &mut CandleStick,
     execution: &Execution,
@@ -107,7 +108,7 @@ fn update_ohlcv_and_append_csv(
         return;
     }
     if candle_stick.has_data() {
-        let dir_all_name = format!("{}/{}", exchange_name, execution.get_date());
+        let dir_all_name = format!("{}/{}/{}", output_dir, exchange_name, execution.get_date());
         let file_name = format!(
             "{}_{}",
             candle_stick.get_csv_name(),
