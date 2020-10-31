@@ -262,7 +262,9 @@ impl BfWebsocket {
                     "{{\"jsonrpc\":\"2.0\",\"method\":\"subscribe\",\"params\":{{\"channel\":\"{}\"}}}}",
                     snapshot_channel
                   );
-                        socket.write_message(Message::Text(json)).unwrap();
+                        if socket.write_message(Message::Text(json)).is_err() {
+                            continue;
+                        }
                         last_connected_date = connect_time;
                     }
                 }
