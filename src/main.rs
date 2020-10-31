@@ -1,6 +1,6 @@
 extern crate fetch_market_and_order_data;
 
-use std::fs::{OpenOptions, create_dir_all};
+use std::fs::{create_dir_all, OpenOptions};
 use std::io::{BufWriter, Write};
 
 use fetch_market_and_order_data::ohlcv::{CandleStick, Periods};
@@ -55,7 +55,12 @@ fn main() {
                 // OHCLVデータを更新とCSVに書き込む
                 // 書き込み先は[{指定ディレクトリ}/{取引所}/{約定データの日付}/{時間足}_{約定データのチャンネル}.csv]
                 for i in 0..candle_sticks.len() {
-                    update_ohlcv_and_append_csv(&output_dir, &exchange_name, &mut candle_sticks[i], &execution);
+                    update_ohlcv_and_append_csv(
+                        &output_dir,
+                        &exchange_name,
+                        &mut candle_sticks[i],
+                        &execution,
+                    );
                 }
             }
             // 遅延データを受信した場合
