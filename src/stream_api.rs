@@ -360,7 +360,7 @@ impl BfWebsocket {
                             let pong = Message::Pong(data.clone());
                             socket.write_message(pong).unwrap();
                         }
-                        _ => break,
+                        _ => continue,
                     }
                 }
             }
