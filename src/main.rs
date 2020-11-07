@@ -58,6 +58,7 @@ fn main() {
                         if 180 <= now_recv_time - last_recv_time {
                             break;
                         }
+                        sleep(Duration::from_millis(1));
                     }
                     // 切断エラーの場合は再接続をする
                     TryRecvError::Disconnected => {
