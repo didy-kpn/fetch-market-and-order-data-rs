@@ -11,6 +11,8 @@ use serde_json::{from_str, Value};
 
 use std::fmt;
 
+use log::{info, warn};
+
 // 共通処理
 pub trait Common {
     // csvに書き込む用のデータを文字列として取得
@@ -245,6 +247,7 @@ impl BfWebsocket {
         public_channel
       );
             socket.write_message(Message::Text(json)).unwrap();
+            info!("on_connect: subscribe {}", public_channel);
         }
 
         let tx = mpsc::Sender::clone(&self.tx);
@@ -266,6 +269,7 @@ impl BfWebsocket {
                     for public_channel in public_channels.iter() {
                         let json = format!("{{\"jsonrpc\":\"2.0\",\"method\":\"unsubscribe\",\"params\":{{\"channel\":\"{}\"}}}}", public_channel);
                         socket.write_message(Message::Text(json)).unwrap();
+                        info!("on_connect.thread: unsubscribe {}", public_channel);
                     }
                     break;
                 }
@@ -279,6 +283,7 @@ impl BfWebsocket {
                     snapshot_channel
                   );
                         if socket.write_message(Message::Text(json)).is_err() {
+                            info!("on_connect.thread: subscribe {}", snapshot_channel);
                             continue;
                         }
                         last_connected_date = connect_time;
@@ -288,7 +293,8 @@ impl BfWebsocket {
                 // 接続等でエラーが発生した場合は終了する
                 let socket_read_message = socket.read_message();
                 if socket_read_message.is_err() {
-                    (*finish).store(false, Ordering::Relaxed);
+                    (*finish).store(true, Ordering::Relaxed);
+                    warn!("on_connect.thread: True the exit flag.");
                     continue;
                 }
                 let socket_read_message = socket_read_message.unwrap();
@@ -368,6 +374,7 @@ impl BfWebsocket {
             channel
           );
                             socket.write_message(Message::Text(json)).unwrap();
+                            info!("on_connect.thread: unsubscribe {}", channel);
 
                             // 板データのスナップショットを配信する
                             let board = Board {
@@ -385,7 +392,8 @@ impl BfWebsocket {
                         socket.write_message(pong).unwrap();
                     }
                     Message::Close(_) => {
-                        (*finish).store(false, Ordering::Relaxed);
+                        (*finish).store(true, Ordering::Relaxed);
+                        warn!("on_connect.thread: True the exit flag.");
                         continue;
                     }
                     _ => continue,
@@ -402,6 +410,7 @@ impl BfWebsocket {
     // メッセージ受信用のスレッドを停止する
     pub fn close_thread(&self) {
         let finish = self.finish.clone();
-        (*finish).store(false, Ordering::Relaxed);
+        (*finish).store(true, Ordering::Relaxed);
+        warn!("close_thread: True the exit flag.");
     }
 }

@@ -14,6 +14,10 @@ use std::time::{Duration, SystemTime};
 
 use std::sync::mpsc::TryRecvError;
 
+use env_logger;
+use log::{info, warn, error};
+use std::env;
+
 #[derive(StructOpt, Debug)]
 #[structopt(name = "fetch_market_and_order_data")]
 struct Opt {
@@ -22,6 +26,9 @@ struct Opt {
 }
 
 fn main() {
+    env::set_var("RUST_LOG", "info");
+    env_logger::init();
+
     // コマンドライン引数から配信データ保存先を取得
     let opt = Opt::from_args();
     let output_dir = &opt.output_dir.display().to_string();
@@ -30,6 +37,7 @@ fn main() {
         // BitFlyerのストリーミングAPIに接続する
         let bf = BfWebsocket::new();
         bf.on_connect();
+        info!("connect to bitFlyer Websocket Service.");
 
         // 1秒、5秒、15秒、1分、5分のローソク足を作成する
         let mut candle_sticks = vec![];
@@ -51,17 +59,19 @@ fn main() {
                 .expect("back to the future")
                 .as_secs();
             let bf_on_message = bf.on_message();
-            if let Err(err) = bf_on_message {
-                match err {
+            if let Err(error) = bf_on_message {
+                match error {
                     // 空データを3分以上受信した場合は再接続する
                     TryRecvError::Empty => {
                         if 180 <= now_recv_time - last_recv_time {
+                            warn!("bf_on_message: Empty data received for more than 3 minutes.");
                             break;
                         }
                         sleep(Duration::from_millis(1));
                     }
                     // 切断エラーの場合は再接続をする
                     TryRecvError::Disconnected => {
+                        warn!("bf_on_message: Desconnected");
                         break;
                     }
                 }
@@ -118,13 +128,15 @@ fn main() {
         // ストリーミングAPIからの配信を停止する
         bf.close_thread();
         sleep(Duration::from_secs(10));
+        info!("disconnect to bitFlyer Websocket Service.");
     }
 }
 
 // CSVファイルに追記モードで書き込む
 fn append_csv(dir_all_name: &String, append_file_name: &String, content: &[u8]) {
     if let Err(error) = create_dir_all(format!("{}", dir_all_name)) {
-        eprintln!("{}", error);
+        error!("append_csv.create_dir_all: {}", error);
+        return;
     }
 
     let file_name = format!("{}/{}.csv", dir_all_name, append_file_name);
@@ -135,7 +147,9 @@ fn append_csv(dir_all_name: &String, append_file_name: &String, content: &[u8]) 
         .unwrap();
     let mut f = BufWriter::new(file);
 
-    f.write(content).unwrap();
+    if let Err(error) = f.write(content) {
+        error!("append_csv.f.write(content): {}", error);
+    }
 }
 
 // OHCLVデータを更新とCSVに書き込む
