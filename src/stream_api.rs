@@ -11,7 +11,7 @@ use serde_json::{from_str, Value};
 
 use std::fmt;
 
-use log::{info, warn};
+use log::{info, warn, error};
 
 // 共通処理
 pub trait Common {
@@ -165,6 +165,9 @@ pub enum MarketInfo {
 
     // 板情報データ
     Boards(Board),
+
+    // 受信終了
+    Close,
 }
 
 // ストリーミングAPIのデータを取得・送信する構造体
@@ -247,7 +250,7 @@ impl BfWebsocket {
         public_channel
       );
             socket.write_message(Message::Text(json)).unwrap();
-            info!("on_connect: subscribe {}", public_channel);
+            info!("on_connect: Subscribe {}", public_channel);
         }
 
         let tx = mpsc::Sender::clone(&self.tx);
@@ -268,9 +271,13 @@ impl BfWebsocket {
                 if (*finish).load(Ordering::Relaxed) {
                     for public_channel in public_channels.iter() {
                         let json = format!("{{\"jsonrpc\":\"2.0\",\"method\":\"unsubscribe\",\"params\":{{\"channel\":\"{}\"}}}}", public_channel);
-                        socket.write_message(Message::Text(json)).unwrap();
-                        info!("on_connect.thread: unsubscribe {}", public_channel);
+                        if let Err(error) = socket.write_message(Message::Text(json)) {
+                            error!("on_connect.thread: Unsubscribe {}. {}", public_channel, error);
+                        } else {
+                            info!("on_connect.thread: Unsubscribe {}", public_channel);
+                        }
                     }
+                    info!("on_connect.thread: thread Finish.");
                     break;
                 }
 
@@ -282,9 +289,11 @@ impl BfWebsocket {
                     "{{\"jsonrpc\":\"2.0\",\"method\":\"subscribe\",\"params\":{{\"channel\":\"{}\"}}}}",
                     snapshot_channel
                   );
-                        if socket.write_message(Message::Text(json)).is_err() {
-                            info!("on_connect.thread: subscribe {}", snapshot_channel);
+                        if let Err(error) = socket.write_message(Message::Text(json)) {
+                            error!("on_connect.thread: Subscribe {}. {}", snapshot_channel, error);
                             continue;
+                        } else {
+                            info!("on_connect.thread: Subscribe {}", snapshot_channel);
                         }
                         last_connected_date = connect_time;
                     }
@@ -292,9 +301,9 @@ impl BfWebsocket {
 
                 // 接続等でエラーが発生した場合は終了する
                 let socket_read_message = socket.read_message();
-                if socket_read_message.is_err() {
+                if let Err(error) = socket_read_message {
                     (*finish).store(true, Ordering::Relaxed);
-                    warn!("on_connect.thread: True the exit flag.");
+                    error!("on_connect.thread: True the exit flag. {}", error);
                     continue;
                 }
                 let socket_read_message = socket_read_message.unwrap();
@@ -373,8 +382,11 @@ impl BfWebsocket {
             "{{\"jsonrpc\":\"2.0\",\"method\":\"unsubscribe\",\"params\":{{\"channel\":\"{}\"}}}}",
             channel
           );
-                            socket.write_message(Message::Text(json)).unwrap();
-                            info!("on_connect.thread: unsubscribe {}", channel);
+                            if let Err(error) = socket.write_message(Message::Text(json)) {
+                                error!("on_connect.thread: Unsubscribe {}. {}", channel, error);
+                            } else {
+                                info!("on_connect.thread: Unsubscribe {}", channel);
+                            }
 
                             // 板データのスナップショットを配信する
                             let board = Board {
@@ -389,11 +401,14 @@ impl BfWebsocket {
                     }
                     Message::Ping(data) => {
                         let pong = Message::Pong(data.clone());
-                        socket.write_message(pong).unwrap();
+                        if let Err(error) = socket.write_message(pong) {
+                            error!("on_connect.thread: Received Ping Message and try to send Pong Message. {}", error);
+                        }
                     }
                     Message::Close(_) => {
                         (*finish).store(true, Ordering::Relaxed);
-                        warn!("on_connect.thread: True the exit flag.");
+                        tx.send(MarketInfo::Close).unwrap();
+                        warn!("on_connect.thread: True the exit flag. Received Close Message.");
                         continue;
                     }
                     _ => continue,

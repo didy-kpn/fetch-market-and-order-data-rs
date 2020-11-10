@@ -37,7 +37,7 @@ fn main() {
         // BitFlyerのストリーミングAPIに接続する
         let bf = BfWebsocket::new();
         bf.on_connect();
-        info!("connect to bitFlyer Websocket Service.");
+        info!("Connect to bitFlyer Websocket Service.");
 
         // 1秒、5秒、15秒、1分、5分のローソク足を作成する
         let mut candle_sticks = vec![];
@@ -71,7 +71,7 @@ fn main() {
                     }
                     // 切断エラーの場合は再接続をする
                     TryRecvError::Disconnected => {
-                        warn!("bf_on_message: Desconnected");
+                        warn!("bf_on_message: Disconnected.");
                         break;
                     }
                 }
@@ -121,6 +121,11 @@ fn main() {
                         let file_name = format!("board_{}", board.get_channel());
                         append_csv(&dir_all_name, &file_name, board.get_csv().as_bytes());
                     }
+                    // 受信終了の場合
+                    MarketInfo::Close => {
+                        info!("Received Close Message.");
+                        break;
+                    }
                 }
             }
         }
@@ -128,7 +133,7 @@ fn main() {
         // ストリーミングAPIからの配信を停止する
         bf.close_thread();
         sleep(Duration::from_secs(10));
-        info!("disconnect to bitFlyer Websocket Service.");
+        info!("Disconnect to bitFlyer Websocket Service.");
     }
 }
 
