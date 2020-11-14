@@ -121,7 +121,7 @@ impl CandleStick {
 
             ohlcv.close = price;
             ohlcv.high = ohlcv.high.max(price);
-            ohlcv.low = ohlcv.low.max(price);
+            ohlcv.low = ohlcv.low.min(price);
             if let Side::Buy = side {
                 ohlcv.buy_volume += size;
             }
@@ -157,7 +157,7 @@ impl CandleStick {
         let ohlcv = self.ohlcv.unwrap();
         format!(
             "{} {} {} {} {} {} {} {}\n",
-            ohlcv.date.timestamp_nanos(),
+            ohlcv.date.timestamp(),
             ohlcv.open,
             ohlcv.high,
             ohlcv.low,
