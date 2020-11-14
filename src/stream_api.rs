@@ -392,7 +392,7 @@ impl BfWebsocket {
                             let board = Board {
                                 receive_time: receive_time,
                                 json: v["params"]["message"].to_string(),
-                                channel: channel.replace("_snapshot", ""),
+                                channel: channel.clone(),
                             };
                             tx.send(MarketInfo::Boards(board)).unwrap();
                         } else {
