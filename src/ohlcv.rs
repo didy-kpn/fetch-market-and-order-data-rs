@@ -1,43 +1,60 @@
 use crate::stream_api::{Common, Execution, Side};
 use chrono::{DateTime, Duration, TimeZone, Utc};
 
-// ローソク足の期間
-// #[derive(Clone, Copy)]
-#[derive(Clone, Copy, Debug)]
-pub enum Periods {
-    OneSecond,
-    FiveSecond,
-    FifteenSecond,
-    OneMinute,
-    FiveMinute,
+// ローソク足の期間(秒数、秒数の文字表記)
+#[derive(Debug)]
+pub struct Periods {
+    periods: i64,         // 秒数
+    periods_str: String,  // 秒数の文字表記。例: 1s, 2m, 3h, 4d
 }
 
 impl Periods {
-    // 秒数を返す
-    fn time(&self) -> i64 {
-        match self {
-            Periods::OneSecond => 1,
-            Periods::FiveSecond => 5,
-            Periods::FifteenSecond => 15,
-            Periods::OneMinute => 60,
-            Periods::FiveMinute => 300,
+    // 秒数の文字表記を指定し、ローソク足の期間(秒数)を保存する
+    pub fn new(periods_str: String) -> Periods {
+        let mut ps = periods_str.clone();
+
+        // 後ろの文字を取得
+        let cs = ps.pop();
+        if cs.is_none() {
+            panic!("periods_str is empty string.");
+        }
+        let unit = match cs.unwrap() {
+            's' => 1,
+            'm' => 60,
+            'h' => 3600,
+            'd' => 86400,
+            _ => 0,
+        };
+
+        // 後ろ以外の文字を数値に変換
+        let no = ps.parse::<i64>();
+        if no.is_err() {
+            panic!("not number.");
+        }
+        let no = no.unwrap();
+
+        // 期間を秒に変換する
+        let periods = no * unit;
+        if periods == 0 {
+            panic!("invalid value.");
+        }
+
+        Periods {
+            periods,
+            periods_str
         }
     }
 
-    pub fn iterator() -> std::slice::Iter<'static, Periods> {
-        static PERIODS: [Periods; 5] = [
-            Periods::OneSecond,
-            Periods::FiveSecond,
-            Periods::FifteenSecond,
-            Periods::OneMinute,
-            Periods::FiveMinute,
-        ];
-        PERIODS.iter()
+    fn time(&self) -> i64 {
+        self.periods
+    }
+
+    fn to_str(&self) -> String {
+        self.periods_str.clone()
     }
 }
 
 // OHLCVの構造体
-// #[derive(Clone, Copy)]
 #[derive(Clone, Copy, Debug)]
 struct OHLCV {
     date: DateTime<Utc>,
@@ -58,10 +75,10 @@ pub struct CandleStick {
 }
 
 impl CandleStick {
-    pub fn new(periods: Periods) -> CandleStick {
+    pub fn new(periods_str: String) -> CandleStick {
         CandleStick {
             ohlcv: None,
-            periods: periods,
+            periods: Periods::new(periods_str),
         }
     }
 
@@ -153,12 +170,6 @@ impl CandleStick {
 
     // csv名に利用する文字列を取得
     pub fn get_csv_name(&self) -> String {
-        String::from(match self.periods {
-            Periods::OneSecond => "1s",
-            Periods::FiveSecond => "5s",
-            Periods::FifteenSecond => "15s",
-            Periods::OneMinute => "1m",
-            Periods::FiveMinute => "5m",
-        })
+        self.periods.to_str()
     }
 }

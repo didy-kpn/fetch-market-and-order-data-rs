@@ -2,8 +2,7 @@ extern crate fetch_market_and_order_data;
 
 use std::fs::{create_dir_all, OpenOptions};
 use std::io::{BufWriter, Write};
-
-use fetch_market_and_order_data::ohlcv::{CandleStick, Periods};
+use fetch_market_and_order_data::ohlcv::CandleStick;
 use fetch_market_and_order_data::stream_api::{BfWebsocket, Common, Execution, MarketInfo};
 
 use std::path::PathBuf;
@@ -39,10 +38,10 @@ fn main() {
         bf.on_connect();
         info!("Connect to bitFlyer Websocket Service.");
 
-        // 1秒、5秒、15秒、1分、5分のローソク足を作成する
+        // 1秒、1分のローソク足を作成する
         let mut candle_sticks = vec![];
-        for period in Periods::iterator() {
-            candle_sticks.push(CandleStick::new(*period));
+        for period in ["1s", "1m"].iter() {
+            candle_sticks.push(CandleStick::new(period.to_string()));
         }
 
         let exchange_name = bf.get_exchange_name();
