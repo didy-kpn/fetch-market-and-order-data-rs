@@ -70,6 +70,7 @@ impl Side {
 }
 
 // 約定履歴の構造体
+#[derive(Clone)]
 pub struct Execution {
     id: i64,
     exec_date: DateTime<Utc>,
@@ -325,6 +326,7 @@ impl BfWebsocket {
                             .filter(|&x| x == &channel)
                             .count()
                         {
+                            let mut executes = Vec::new();
                             // 約定データを配信する
                             for i in 0..v["params"]["message"].as_array().unwrap().len() {
                                 let exec_date = v["params"]["message"][i]["exec_date"]
@@ -344,9 +346,12 @@ impl BfWebsocket {
                                     size: v["params"]["message"][i]["size"].as_f64().unwrap(),
                                     channel: channel.clone(),
                                 };
-                                tx.send(MarketInfo::Executions(execute)).unwrap();
-
                                 exec_ts_nanos = std::cmp::min(exec_ts_nanos, exec_unix_time);
+                                executes.push(execute);
+                            }
+                            executes.sort_by(|a, b| a.exec_unix_time.cmp(&b.exec_unix_time)); // 日付を古い順でソートする
+                            for i in 0..executes.len() {
+                                tx.send(MarketInfo::Executions(executes[i].clone())).unwrap();
                             }
 
                             // 遅延データを配信する
