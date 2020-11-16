@@ -121,7 +121,7 @@ impl Common for Latency {
     fn get_csv(&self) -> String {
         format!(
             "{} {}\n",
-            self.receive_time.timestamp_nanos(),
+            self.receive_time.timestamp_millis(),
             self.sender_time
         )
     }
@@ -144,7 +144,7 @@ pub struct Board {
 
 impl Common for Board {
     fn get_csv(&self) -> String {
-        format!("{} {}\n", self.receive_time.timestamp_nanos(), self.json)
+        format!("{} {}\n", self.receive_time.timestamp_millis(), self.json)
     }
 
     fn data_time(&self) -> DateTime<Utc> {
@@ -314,7 +314,7 @@ impl BfWebsocket {
                         let receive_time = Utc::now();
 
                         // 約定履歴データの一番古い日時を代入する用
-                        let mut exec_ts_nanos = 5_000_000_000_000_000_000;
+                        let mut exec_ts_millis = 5_000_000_000_000;
 
                         let v: Value = from_str(&text).unwrap();
 
@@ -334,7 +334,7 @@ impl BfWebsocket {
                                     .unwrap()
                                     .parse::<DateTime<Utc>>()
                                     .unwrap();
-                                let exec_unix_time = exec_date.timestamp_nanos();
+                                let exec_unix_time = exec_date.timestamp_millis();
                                 let execute = Execution {
                                     id: v["params"]["message"][i]["id"].as_i64().unwrap(),
                                     exec_date: exec_date,
@@ -346,7 +346,7 @@ impl BfWebsocket {
                                     size: v["params"]["message"][i]["size"].as_f64().unwrap(),
                                     channel: channel.clone(),
                                 };
-                                exec_ts_nanos = std::cmp::min(exec_ts_nanos, exec_unix_time);
+                                exec_ts_millis = std::cmp::min(exec_ts_millis, exec_unix_time);
                                 executes.push(execute);
                             }
                             executes.sort_by(|a, b| a.exec_unix_time.cmp(&b.exec_unix_time)); // 日付を古い順でソートする
@@ -356,7 +356,7 @@ impl BfWebsocket {
 
                             // 遅延データを配信する
                             let latency = Latency {
-                                sender_time: receive_time.timestamp_nanos() - exec_ts_nanos,
+                                sender_time: receive_time.timestamp_millis() - exec_ts_millis,
                                 receive_time: receive_time,
                                 channel: channel.clone(),
                             };
