@@ -1,7 +1,7 @@
 use std::sync::{Arc, mpsc, atomic::{AtomicBool, Ordering} };
 use std::thread;
 
-use chrono::{DateTime, Datelike, Utc};
+use chrono::{DateTime, Timelike, Utc};
 
 use tungstenite::{connect, Message};
 
@@ -138,13 +138,16 @@ impl Common for Latency {
 // 板情報の構造体
 pub struct Board {
     receive_time: DateTime<Utc>,
-    json: String,
+    pub asks: Vec<(f64, f64)>,
+    pub bids: Vec<(f64, f64)>,
     channel: String,
+    pub is_update: bool,
 }
 
 impl Common for Board {
+    // NOTE:
     fn get_csv(&self) -> String {
-        format!("{} {}\n", self.receive_time.timestamp_millis(), self.json)
+        format!("{}\n", self.receive_time.timestamp_millis())
     }
 
     fn data_time(&self) -> DateTime<Utc> {
@@ -265,7 +268,7 @@ impl BfWebsocket {
         thread::spawn(move || {
 
             // 前回の接続した日付
-            let mut last_connected_date = Utc::today();
+            let mut last_connected_date = Utc::now();
             loop {
 
                 // チャンネルの購読を停止
@@ -283,8 +286,8 @@ impl BfWebsocket {
                 }
 
                 // 現在の日付を取得し、前回と日が異なる場合はスナップショットチャンネルに再接続する
-                let connect_time = Utc::today();
-                if last_connected_date.day() != connect_time.day() {
+                let connect_time = Utc::now();
+                if last_connected_date.hour() != connect_time.hour() {
                     for snapshot_channel in public_snapshot_channels.iter() {
                         let json = format!(
                     "{{\"jsonrpc\":\"2.0\",\"method\":\"subscribe\",\"params\":{{\"channel\":\"{}\"}}}}",
@@ -368,11 +371,28 @@ impl BfWebsocket {
                             .filter(|&x| x == &channel)
                             .count()
                         {
+                            let mut asks = Vec::new();
+                            let mut bids = Vec::new();
+                            for i in 0..v["params"]["message"]["asks"].as_array().unwrap().len() {
+                                let price = v["params"]["message"]["asks"][i]["price"].as_f64().unwrap();
+                                let size = v["params"]["message"]["asks"][i]["size"].as_f64().unwrap();
+                                let v = (price, size);
+                                asks.push(v);
+                            }
+
+                            for i in 0..v["params"]["message"]["bids"].as_array().unwrap().len() {
+                                let price = v["params"]["message"]["bids"][i]["price"].as_f64().unwrap();
+                                let size = v["params"]["message"]["bids"][i]["size"].as_f64().unwrap();
+                                let v = (price, size);
+                                bids.push(v);
+                            }
                             // 板データの差分を配信する
                             let board = Board {
                                 receive_time: receive_time,
-                                json: v["params"]["message"].to_string(),
+                                asks,
+                                bids,
                                 channel: channel.clone(),
+                                is_update: true,
                             };
                             tx.send(MarketInfo::Boards(board)).unwrap();
 
@@ -393,11 +413,29 @@ impl BfWebsocket {
                                 info!("on_connect.thread: Unsubscribe {}", channel);
                             }
 
+                            let mut asks = Vec::new();
+                            let mut bids = Vec::new();
+                            for i in 0..v["params"]["message"]["asks"].as_array().unwrap().len() {
+                                let price = v["params"]["message"]["asks"][i]["price"].as_f64().unwrap();
+                                let size = v["params"]["message"]["asks"][i]["size"].as_f64().unwrap();
+                                let v = (price, size);
+                                asks.push(v);
+                            }
+
+                            for i in 0..v["params"]["message"]["bids"].as_array().unwrap().len() {
+                                let price = v["params"]["message"]["bids"][i]["price"].as_f64().unwrap();
+                                let size = v["params"]["message"]["bids"][i]["size"].as_f64().unwrap();
+                                let v = (price, size);
+                                bids.push(v);
+                            }
+
                             // 板データのスナップショットを配信する
                             let board = Board {
                                 receive_time: receive_time,
-                                json: v["params"]["message"].to_string(),
-                                channel: channel.clone(),
+                                asks,
+                                bids,
+                                channel: channel.replace("_snapshot", ""),
+                                is_update: false,
                             };
                             tx.send(MarketInfo::Boards(board)).unwrap();
                         } else {
