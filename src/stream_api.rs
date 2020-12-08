@@ -206,14 +206,14 @@ impl BfWebsocket {
     }
 
     // ストリーミングAPIを利用して購読するチャンネル
-    pub fn get_public_channels(&self) -> [String; 6] {
+    pub fn get_public_channels(&self) -> [String; 2] {
         [
             String::from("lightning_executions_FX_BTC_JPY"),
             String::from("lightning_executions_BTC_JPY"),
-            String::from("lightning_board_snapshot_FX_BTC_JPY"),
-            String::from("lightning_board_FX_BTC_JPY"),
-            String::from("lightning_board_snapshot_BTC_JPY"),
-            String::from("lightning_board_BTC_JPY"),
+            // String::from("lightning_board_snapshot_FX_BTC_JPY"),
+            // String::from("lightning_board_FX_BTC_JPY"),
+            // String::from("lightning_board_snapshot_BTC_JPY"),
+            // String::from("lightning_board_BTC_JPY"),
         ]
     }
 
@@ -226,18 +226,18 @@ impl BfWebsocket {
     }
 
     // ストリーミングAPIの板情報チャンネル
-    pub fn get_public_board_channels(&self) -> [String; 2] {
+    pub fn get_public_board_channels(&self) -> [String; 0] {
         [
-            String::from("lightning_board_FX_BTC_JPY"),
-            String::from("lightning_board_BTC_JPY"),
+            // String::from("lightning_board_FX_BTC_JPY"),
+            // String::from("lightning_board_BTC_JPY"),
         ]
     }
 
     // ストリーミングAPIのスナップショットチャンネル
-    pub fn get_public_snapshot_channels(&self) -> [String; 2] {
+    pub fn get_public_snapshot_channels(&self) -> [String; 0] {
         [
-            String::from("lightning_board_snapshot_FX_BTC_JPY"),
-            String::from("lightning_board_snapshot_BTC_JPY"),
+            // String::from("lightning_board_snapshot_FX_BTC_JPY"),
+            // String::from("lightning_board_snapshot_BTC_JPY"),
         ]
     }
 

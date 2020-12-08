@@ -114,20 +114,20 @@ impl OrderBooks {
         let mut bids = self.bids.iter().map(|(k, v)| (k.parse::<f64>().unwrap(), v)).collect::<Vec<(f64, &f64)>>();
         bids.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
 
-        let asks_length = std::cmp::min(if 0 < asks.len() { asks.len() - 1 } else { 0 }, 25);
-        let bids_length = std::cmp::min(if 0 < bids.len() { bids.len() - 1 } else { 0 }, 25);
+        let asks_length = std::cmp::min(if 0 < asks.len() { asks.len() - 1 } else { 0 }, 100);
+        let bids_length = std::cmp::min(if 0 < bids.len() { bids.len() - 1 } else { 0 }, 100);
 
         format!(
             "{} {} {}\n",
             self.date.timestamp(),
             asks[..asks_length]
                 .iter()
-                .map(|(k, v)| format!("[{},{}]", k, v))
+                .map(|(k, _)| k.to_string())
                 .collect::<Vec<String>>()
                 .join(","),
             bids[..bids_length]
                 .iter()
-                .map(|(k, v)| format!("[{},{}]", k, v))
+                .map(|(k, _)| k.to_string())
                 .collect::<Vec<String>>()
                 .join(","),
         )
