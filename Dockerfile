@@ -8,8 +8,11 @@ WORKDIR $APP_ROOT
 RUN git checkout develop
 RUN cargo install --path .
 
-RUN mkdir -p /var/log/fetch-market-and-order-data
-VOLUME /var/log/fetch-market-and-order-data
-RUN touch /var/log/fetch-market-and-order-data/output.log
+ENV LOG_DIR=/var/log/fetch-market-and-order-data
+ENV OUTPUT_LOG=$LOG_DIR/output.log
 
-CMD /usr/local/cargo/bin/fetch-market-and-order-data -o /var/log/fetch-market-and-order-data >> /var/log/fetch-market-and-order-data/output.log 2>&1
+RUN mkdir -p $LOG_DIR
+VOLUME $LOG_DIR
+RUN touch $OUTPUT_LOG
+
+CMD /usr/local/cargo/bin/fetch-market-and-order-data -o $LOG_DIR >> $OUTPUT_LOG 2>&1
