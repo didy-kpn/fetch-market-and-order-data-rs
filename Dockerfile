@@ -9,8 +9,7 @@ RUN git checkout develop
 RUN cargo install --path .
 
 RUN mkdir -p /var/log/fetch-market-and-order-data
+VOLUME /var/log/fetch-market-and-order-data
 RUN touch /var/log/fetch-market-and-order-data/output.log
 
-VOLUME /var/log/fetch-market-and-order-data
-
-CMD /usr/local/cargo/bin/fetch-market-and-order-data -o /var/log/fetch-market-and-order-data >> output.log 2>&1
+CMD /usr/local/cargo/bin/fetch-market-and-order-data -o /var/log/fetch-market-and-order-data >> /var/log/fetch-market-and-order-data/output.log 2>&1
