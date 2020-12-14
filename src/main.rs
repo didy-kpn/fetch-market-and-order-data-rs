@@ -2,8 +2,8 @@ extern crate fetch_market_and_order_data;
 
 use std::fs::{create_dir_all, OpenOptions};
 use std::io::{BufWriter, Write};
-use fetch_market_and_order_data::ohlcv::CandleStick;
-use fetch_market_and_order_data::stream_api::{BfWebsocket, Common, Execution, MarketInfo};
+// use fetch_market_and_order_data::ohlcv::CandleStick;
+use fetch_market_and_order_data::stream_api::{BfWebsocket, Common, MarketInfo};
 // use fetch_market_and_order_data::stream_api::{BfWebsocket, Common, Execution, Board, MarketInfo};
 // use fetch_market_and_order_data::orderbooks::OrderBooks;
 
@@ -40,8 +40,8 @@ fn main() {
         bf.on_connect();
         info!("Connect to bitFlyer Websocket Service.");
 
-        // 1秒間隔のローソク足を作成する
-        let mut candle_sticks_1s = CandleStick::new("1s".to_string());
+        // // 1秒間隔のローソク足を作成する
+        // let mut candle_sticks_1s = CandleStick::new("1s".to_string());
 
         // オーダブックを作成する
         // let mut order_books_1s = OrderBooks::new("1s".to_string());
@@ -86,14 +86,11 @@ fn main() {
                 match message {
                     // 約定データを受信した場合
                     MarketInfo::Executions(execution) => {
-                        // OHLCVデータの更新とCSVに書き込む
-                        // 書き込み先は[{指定ディレクトリ}/{取引所}/{約定データの日付}/{時間足}_{約定データのチャンネル}.csv]
-                        update_ohlcv_and_append_csv(
-                            &output_dir,
-                            &exchange_name,
-                            &mut candle_sticks_1s,
-                            &execution,
-                        );
+                        // CSVに約定データを書き込む
+                        // 書き込み先は[{指定ディレクトリ}/{取引所}/{約定データの日付}/{約定データのチャンネル}.csv]
+                        let dir_all_name =
+                            format!("{}/{}/{}", output_dir, exchange_name, execution.get_date());
+                        append_csv(&dir_all_name, &execution.get_channel(), execution.get_csv().as_bytes());
                     }
                     // 遅延データを受信した場合
                     MarketInfo::LatencyExchange(latency) => {
@@ -153,28 +150,28 @@ fn append_csv(dir_all_name: &String, append_file_name: &String, content: &[u8]) 
     }
 }
 
-// OHLCVデータの更新とCSVに書き込む
-fn update_ohlcv_and_append_csv(
-    output_dir: &String,
-    exchange_name: &String,
-    candle_stick: &mut CandleStick,
-    execution: &Execution,
-) {
-    if candle_stick.in_periods(&execution) {
-        candle_stick.update(&execution);
-        return;
-    }
-    if candle_stick.has_data() {
-        let dir_all_name = format!("{}/{}/{}", output_dir, exchange_name, execution.get_date());
-        let file_name = format!(
-            "{}_{}",
-            candle_stick.get_csv_name(),
-            execution.get_channel(),
-        );
-        append_csv(&dir_all_name, &file_name, candle_stick.get_csv().as_bytes());
-    }
-    candle_stick.start(&execution);
-}
+// // OHLCVデータの更新とCSVに書き込む
+// fn update_ohlcv_and_append_csv(
+//     output_dir: &String,
+//     exchange_name: &String,
+//     candle_stick: &mut CandleStick,
+//     execution: &Execution,
+// ) {
+//     if candle_stick.in_periods(&execution) {
+//         candle_stick.update(&execution);
+//         return;
+//     }
+//     if candle_stick.has_data() {
+//         let dir_all_name = format!("{}/{}/{}", output_dir, exchange_name, execution.get_date());
+//         let file_name = format!(
+//             "{}_{}",
+//             candle_stick.get_csv_name(),
+//             execution.get_channel(),
+//         );
+//         append_csv(&dir_all_name, &file_name, candle_stick.get_csv().as_bytes());
+//     }
+//     candle_stick.start(&execution);
+// }
 
 // // 板情報データの更新とCSVに書き込む
 // fn update_orderbookds_and_append_csv(
