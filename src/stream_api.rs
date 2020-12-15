@@ -315,9 +315,6 @@ impl BfWebsocket {
                         // 受信時間
                         let receive_time = Utc::now();
 
-                        // 約定履歴データの一番古い日時を代入する用
-                        let mut exec_ts_millis = 5_000_000_000_000;
-
                         let v: Value = from_str(&text).unwrap();
 
                         let channel = v["params"]["channel"].as_str().unwrap().to_string();
@@ -328,6 +325,10 @@ impl BfWebsocket {
                             .filter(|&x| x == &channel)
                             .count()
                         {
+
+                            // 約定履歴データの一番古い日時を代入する用
+                            let mut exec_ts_millis = 5_000_000_000_000;
+
                             let mut executes = Vec::new();
                             // 約定データを配信する
                             for i in 0..v["params"]["message"].as_array().unwrap().len() {
@@ -336,10 +337,9 @@ impl BfWebsocket {
                                     .unwrap()
                                     .parse::<DateTime<Utc>>()
                                     .unwrap();
-                                let exec_unix_time = exec_date.timestamp();
                                 let execute = Execution {
                                     exec_date: exec_date,
-                                    exec_unix_time: exec_unix_time,
+                                    exec_unix_time: exec_date.timestamp(),
                                     side: Side::from_str(
                                         v["params"]["message"][i]["side"].as_str().unwrap(),
                                     ),
@@ -347,7 +347,7 @@ impl BfWebsocket {
                                     size: v["params"]["message"][i]["size"].as_f64().unwrap(),
                                     channel: channel.clone(),
                                 };
-                                exec_ts_millis = std::cmp::min(exec_ts_millis, exec_unix_time);
+                                exec_ts_millis = std::cmp::min(exec_ts_millis, exec_date.timestamp_millis());
                                 executes.push(execute);
                             }
                             executes.sort_by(|a, b| a.exec_unix_time.cmp(&b.exec_unix_time)); // 日付を古い順でソートする
