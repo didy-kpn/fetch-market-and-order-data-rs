@@ -1,0 +1,8 @@
+version: '3'
+
+services:
+  fetch-market-and-order-data:
+    build: ./
+    volumes:
+      - ./log:/var/log/fetch-market-and-order-data
+    image: fetch-script

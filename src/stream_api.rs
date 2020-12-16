@@ -1,7 +1,7 @@
 use std::sync::{Arc, mpsc, atomic::{AtomicBool, Ordering} };
 use std::thread;
 
-use chrono::{DateTime, Datelike, Utc};
+use chrono::{DateTime, Timelike, Utc};
 
 use tungstenite::{connect, Message};
 
@@ -72,7 +72,6 @@ impl Side {
 // 約定履歴の構造体
 #[derive(Clone)]
 pub struct Execution {
-    id: i64,
     exec_date: DateTime<Utc>,
     exec_unix_time: i64,
     side: Side,
@@ -84,8 +83,8 @@ pub struct Execution {
 impl Common for Execution {
     fn get_csv(&self) -> String {
         format!(
-            "{} {} {} {} {}\n",
-            self.id, self.exec_unix_time, self.side, self.price, self.size
+            "{} {} {} {}\n",
+            self.exec_unix_time, self.side, self.price, self.size
         )
     }
 
@@ -138,13 +137,16 @@ impl Common for Latency {
 // 板情報の構造体
 pub struct Board {
     receive_time: DateTime<Utc>,
-    json: String,
+    pub asks: Vec<(f64, f64)>,
+    pub bids: Vec<(f64, f64)>,
     channel: String,
+    pub is_update: bool,
 }
 
 impl Common for Board {
+    // NOTE:
     fn get_csv(&self) -> String {
-        format!("{} {}\n", self.receive_time.timestamp_millis(), self.json)
+        format!("{}\n", self.receive_time.timestamp_millis())
     }
 
     fn data_time(&self) -> DateTime<Utc> {
@@ -203,14 +205,14 @@ impl BfWebsocket {
     }
 
     // ストリーミングAPIを利用して購読するチャンネル
-    pub fn get_public_channels(&self) -> [String; 6] {
+    pub fn get_public_channels(&self) -> [String; 2] {
         [
             String::from("lightning_executions_FX_BTC_JPY"),
             String::from("lightning_executions_BTC_JPY"),
-            String::from("lightning_board_snapshot_FX_BTC_JPY"),
-            String::from("lightning_board_FX_BTC_JPY"),
-            String::from("lightning_board_snapshot_BTC_JPY"),
-            String::from("lightning_board_BTC_JPY"),
+            // String::from("lightning_board_snapshot_FX_BTC_JPY"),
+            // String::from("lightning_board_FX_BTC_JPY"),
+            // String::from("lightning_board_snapshot_BTC_JPY"),
+            // String::from("lightning_board_BTC_JPY"),
         ]
     }
 
@@ -223,18 +225,18 @@ impl BfWebsocket {
     }
 
     // ストリーミングAPIの板情報チャンネル
-    pub fn get_public_board_channels(&self) -> [String; 2] {
+    pub fn get_public_board_channels(&self) -> [String; 0] {
         [
-            String::from("lightning_board_FX_BTC_JPY"),
-            String::from("lightning_board_BTC_JPY"),
+            // String::from("lightning_board_FX_BTC_JPY"),
+            // String::from("lightning_board_BTC_JPY"),
         ]
     }
 
     // ストリーミングAPIのスナップショットチャンネル
-    pub fn get_public_snapshot_channels(&self) -> [String; 2] {
+    pub fn get_public_snapshot_channels(&self) -> [String; 0] {
         [
-            String::from("lightning_board_snapshot_FX_BTC_JPY"),
-            String::from("lightning_board_snapshot_BTC_JPY"),
+            // String::from("lightning_board_snapshot_FX_BTC_JPY"),
+            // String::from("lightning_board_snapshot_BTC_JPY"),
         ]
     }
 
@@ -265,7 +267,7 @@ impl BfWebsocket {
         thread::spawn(move || {
 
             // 前回の接続した日付
-            let mut last_connected_date = Utc::today();
+            let mut last_connected_date = Utc::now();
             loop {
 
                 // チャンネルの購読を停止
@@ -283,8 +285,8 @@ impl BfWebsocket {
                 }
 
                 // 現在の日付を取得し、前回と日が異なる場合はスナップショットチャンネルに再接続する
-                let connect_time = Utc::today();
-                if last_connected_date.day() != connect_time.day() {
+                let connect_time = Utc::now();
+                if last_connected_date.hour() != connect_time.hour() {
                     for snapshot_channel in public_snapshot_channels.iter() {
                         let json = format!(
                     "{{\"jsonrpc\":\"2.0\",\"method\":\"subscribe\",\"params\":{{\"channel\":\"{}\"}}}}",
@@ -313,9 +315,6 @@ impl BfWebsocket {
                         // 受信時間
                         let receive_time = Utc::now();
 
-                        // 約定履歴データの一番古い日時を代入する用
-                        let mut exec_ts_millis = 5_000_000_000_000;
-
                         let v: Value = from_str(&text).unwrap();
 
                         let channel = v["params"]["channel"].as_str().unwrap().to_string();
@@ -326,6 +325,10 @@ impl BfWebsocket {
                             .filter(|&x| x == &channel)
                             .count()
                         {
+
+                            // 約定履歴データの一番古い日時を代入する用
+                            let mut exec_ts_millis = 5_000_000_000_000;
+
                             let mut executes = Vec::new();
                             // 約定データを配信する
                             for i in 0..v["params"]["message"].as_array().unwrap().len() {
@@ -334,11 +337,9 @@ impl BfWebsocket {
                                     .unwrap()
                                     .parse::<DateTime<Utc>>()
                                     .unwrap();
-                                let exec_unix_time = exec_date.timestamp_millis();
                                 let execute = Execution {
-                                    id: v["params"]["message"][i]["id"].as_i64().unwrap(),
                                     exec_date: exec_date,
-                                    exec_unix_time: exec_unix_time,
+                                    exec_unix_time: exec_date.timestamp(),
                                     side: Side::from_str(
                                         v["params"]["message"][i]["side"].as_str().unwrap(),
                                     ),
@@ -346,7 +347,7 @@ impl BfWebsocket {
                                     size: v["params"]["message"][i]["size"].as_f64().unwrap(),
                                     channel: channel.clone(),
                                 };
-                                exec_ts_millis = std::cmp::min(exec_ts_millis, exec_unix_time);
+                                exec_ts_millis = std::cmp::min(exec_ts_millis, exec_date.timestamp_millis());
                                 executes.push(execute);
                             }
                             executes.sort_by(|a, b| a.exec_unix_time.cmp(&b.exec_unix_time)); // 日付を古い順でソートする
@@ -368,11 +369,28 @@ impl BfWebsocket {
                             .filter(|&x| x == &channel)
                             .count()
                         {
+                            let mut asks = Vec::new();
+                            let mut bids = Vec::new();
+                            for i in 0..v["params"]["message"]["asks"].as_array().unwrap().len() {
+                                let price = v["params"]["message"]["asks"][i]["price"].as_f64().unwrap();
+                                let size = v["params"]["message"]["asks"][i]["size"].as_f64().unwrap();
+                                let v = (price, size);
+                                asks.push(v);
+                            }
+
+                            for i in 0..v["params"]["message"]["bids"].as_array().unwrap().len() {
+                                let price = v["params"]["message"]["bids"][i]["price"].as_f64().unwrap();
+                                let size = v["params"]["message"]["bids"][i]["size"].as_f64().unwrap();
+                                let v = (price, size);
+                                bids.push(v);
+                            }
                             // 板データの差分を配信する
                             let board = Board {
                                 receive_time: receive_time,
-                                json: v["params"]["message"].to_string(),
+                                asks,
+                                bids,
                                 channel: channel.clone(),
+                                is_update: true,
                             };
                             tx.send(MarketInfo::Boards(board)).unwrap();
 
@@ -393,11 +411,29 @@ impl BfWebsocket {
                                 info!("on_connect.thread: Unsubscribe {}", channel);
                             }
 
+                            let mut asks = Vec::new();
+                            let mut bids = Vec::new();
+                            for i in 0..v["params"]["message"]["asks"].as_array().unwrap().len() {
+                                let price = v["params"]["message"]["asks"][i]["price"].as_f64().unwrap();
+                                let size = v["params"]["message"]["asks"][i]["size"].as_f64().unwrap();
+                                let v = (price, size);
+                                asks.push(v);
+                            }
+
+                            for i in 0..v["params"]["message"]["bids"].as_array().unwrap().len() {
+                                let price = v["params"]["message"]["bids"][i]["price"].as_f64().unwrap();
+                                let size = v["params"]["message"]["bids"][i]["size"].as_f64().unwrap();
+                                let v = (price, size);
+                                bids.push(v);
+                            }
+
                             // 板データのスナップショットを配信する
                             let board = Board {
                                 receive_time: receive_time,
-                                json: v["params"]["message"].to_string(),
-                                channel: channel.clone(),
+                                asks,
+                                bids,
+                                channel: channel.replace("_snapshot", ""),
+                                is_update: false,
                             };
                             tx.send(MarketInfo::Boards(board)).unwrap();
                         } else {
