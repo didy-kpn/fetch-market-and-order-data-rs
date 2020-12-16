@@ -2,10 +2,7 @@ extern crate fetch_market_and_order_data;
 
 use std::fs::{create_dir_all, OpenOptions};
 use std::io::{BufWriter, Write};
-// use fetch_market_and_order_data::ohlcv::CandleStick;
 use fetch_market_and_order_data::stream_api::{BfWebsocket, Common, MarketInfo};
-// use fetch_market_and_order_data::stream_api::{BfWebsocket, Common, Execution, Board, MarketInfo};
-// use fetch_market_and_order_data::orderbooks::OrderBooks;
 
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -39,12 +36,6 @@ fn main() {
         let bf = BfWebsocket::new();
         bf.on_connect();
         info!("Connect to bitFlyer Websocket Service.");
-
-        // // 1秒間隔のローソク足を作成する
-        // let mut candle_sticks_1s = CandleStick::new("1s".to_string());
-
-        // オーダブックを作成する
-        // let mut order_books_1s = OrderBooks::new("1s".to_string());
 
         let exchange_name = bf.get_exchange_name();
 
@@ -101,24 +92,12 @@ fn main() {
                         let file_name = format!("latency_{}", latency.get_channel());
                         append_csv(&dir_all_name, &file_name, latency.get_csv().as_bytes());
                     }
-                    // NOTE: 別の機会に実装する
-                    // 板データを受信した場合
-                    MarketInfo::Boards(_) => {
-                        // // 板情報データの更新とCSVに書き込む
-                        // // 書き込み先は[{指定ディレクトリ}/{取引所}/{板データの日付}/{時間足}_{板データのチャンネル}.csv]
-                        // update_orderbookds_and_append_csv(
-                        //     &output_dir,
-                        //     &exchange_name,
-                        //     &mut order_books_1s,
-                        //     &board,
-                        // );
-
-                    }
                     // 受信終了の場合
                     MarketInfo::Close => {
                         info!("Received Close Message.");
                         break;
                     }
+                    _ => {}
                 }
             }
         }
@@ -149,49 +128,3 @@ fn append_csv(dir_all_name: &String, append_file_name: &String, content: &[u8]) 
         error!("append_csv.f.write(content): {}", error);
     }
 }
-
-// // OHLCVデータの更新とCSVに書き込む
-// fn update_ohlcv_and_append_csv(
-//     output_dir: &String,
-//     exchange_name: &String,
-//     candle_stick: &mut CandleStick,
-//     execution: &Execution,
-// ) {
-//     if candle_stick.in_periods(&execution) {
-//         candle_stick.update(&execution);
-//         return;
-//     }
-//     if candle_stick.has_data() {
-//         let dir_all_name = format!("{}/{}/{}", output_dir, exchange_name, execution.get_date());
-//         let file_name = format!(
-//             "{}_{}",
-//             candle_stick.get_csv_name(),
-//             execution.get_channel(),
-//         );
-//         append_csv(&dir_all_name, &file_name, candle_stick.get_csv().as_bytes());
-//     }
-//     candle_stick.start(&execution);
-// }
-
-// // 板情報データの更新とCSVに書き込む
-// fn update_orderbookds_and_append_csv(
-//     output_dir: &String,
-//     exchange_name: &String,
-//     order_books: &mut OrderBooks,
-//     board: &Board,
-// ) {
-//     if order_books.in_periods(&board) {
-//         order_books.update(&board);
-//         return;
-//     }
-//     if order_books.has_data() {
-//         let dir_all_name = format!("{}/{}/{}", output_dir, exchange_name, board.get_date());
-//         let file_name = format!(
-//             "{}_{}",
-//             order_books.get_csv_name(),
-//             board.get_channel(),
-//         );
-//         append_csv(&dir_all_name, &file_name, order_books.get_csv().as_bytes());
-//     }
-//     order_books.update(&board);
-// }
