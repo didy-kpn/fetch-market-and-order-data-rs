@@ -5,7 +5,7 @@ ENV APP_ROOT=/usr/src/fetch-market-and-order-data-rs
 RUN git clone https://github.com/didy-kpn/fetch-market-and-order-data-rs $APP_ROOT
 WORKDIR $APP_ROOT
 
-RUN git checkout develop
+RUN git checkout main
 RUN cargo install --path .
 
 ENV LOG_DIR=/var/log/fetch-market-and-order-data
